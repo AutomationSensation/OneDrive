@@ -1,0 +1,71 @@
+#Install some necessary parts.
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Install-PackageProvider -Name NuGet -Force
+
+#Random Start-Sleep delays throughout - feel free to remove them.
+write-host 'Setup ScriptBlock'
+Start-sleep -Seconds 3
+
+#Setup the Script Block to be run as the impersonated user.
+$scriptblock = {
+write-host 'Writing ScriptBlock'
+Start-sleep -Seconds 3
+write-host 'Getting OneDrive Path'
+
+#Get the OneDrive path in LocalAppData - Usually installed here but not always.
+$Path = (Get-ChildItem -Path $env:LOCALAPPDATA -Recurse -Filter "OneDrive.exe" | Select-Object -First 1).FullName
+
+#Output to log file on the users computer.
+$Path >> C:\Script\ODriveLaunchLog.txt
+Start-sleep -Seconds 3
+
+#If the file doesnt, exist. Look in Program Files - this is the only other place I have found it.
+if (!$Path) {
+	$Path = (Get-ChildItem -Path $env:ProgramFiles -Recurse -Filter "OneDrive.exe" | Select-Object -First 1).FullName
+	if (!$Path) {
+	#If it's still not found, exit the script - its not installed.
+	write-host 'OneDrive Missing. Stopping script.'
+	exit 1
+	}
+	else{
+	Start-sleep -Seconds 3
+	write-host 'Executing OneDrive'
+	Start-sleep -Seconds 3
+	#If it is in Program Files, launch OneDrive located at the Path variable.
+	& $Path
+	Start-sleep -Seconds 5
+	exit 1	
+	}
+}
+else{
+	Start-sleep -Seconds 3
+	write-host 'Executing OneDrive'
+	Start-sleep -Seconds 3
+	#If it is in LocalAppData, launch OneDrive located at the Path variable.
+	& $Path
+	Start-sleep -Seconds 5
+	exit 1	
+      }
+}
+
+write-host 'Sleeping 10 Seconds'
+#Random sleep - remove if you want...
+Start-sleep -Seconds 10
+
+#If the RunAsUser module is not installed, install it with force and then launch the script block as the impersonated user. UseWindowsPowerShell switch required through N-Central.
+if(-not (Get-Module RunAsUser -ListAvailable)){
+	Install-Module RunAsUser -Scope AllUsers -Force
+	Import-Module RunAsUser
+	write-host 'Attempting to invoke RunAs'
+	Start-sleep -Seconds 3
+	invoke-ascurrentuser -NonElevatedSession -scriptblock $scriptblock -UseWindowsPowerShell
+}
+
+#Module already installed, run the script block as the impersonaled user. UseWindowsPowerShell switch required through N-Central.
+Else{
+	Import-Module RunAsUser
+	write-host 'Attempting to invoke RunAs'
+	Start-sleep -Seconds 3
+	invoke-ascurrentuser -NonElevatedSession -scriptblock $scriptblock -UseWindowsPowerShell
+}
+
