@@ -1,0 +1,56 @@
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Install-PackageProvider -Name NuGet -Force >> C:\Temp\OneDriveSilentBackup.log
+
+write-host 'Setup ScriptBlock' >> C:\Temp\OneDriveSilentBackup.log
+Start-sleep -Seconds 3
+
+$scriptblock = {
+
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+$currentUserGUID = $currentUser.User.Value
+Write-Output $currentUserGUID >> C:\Temp\OneDriveSilentBackup.log
+$RegistryPath = "HKU\" + $currentUserGUID + "\Software\Microsoft\OneDrive\Accounts\Business1\"
+write-host $RegistryPath >> C:\Temp\OneDriveSilentBackup.log
+
+if (Test-Path "REGISTRY::$RegistryPath") {
+    # ConfiguredTenantId exists in the registry path, continue script execution
+    Write-Host "ConfiguredTenantId exists in the registry path." >> C:\Temp\OneDriveSilentBackup.log
+	$tenantId = (Get-Item -Path REGISTRY::$RegistryPath).GetValue("ConfiguredTenantId")
+	Write-Output $tenantId >> C:\Temp\OneDriveSilentBackup.log
+	$regSilentRedirectPath = "HKLM:\SOFTWARE\Policies\Microsoft\OneDrive"
+	if (!(Test-Path $regSilentRedirectPath)) {
+   	New-Item -Path $regSilentRedirectPath -Force | Out-Null
+	New-ItemProperty -Path $regSilentRedirectPath -Name "KFMSilentOptIn" -Value $tenantID -PropertyType String -Force | Out-Null >> C:\Temp\OneDriveSilentBackup.log
+	New-ItemProperty -Path $regSilentRedirectPath -Name "KFMSilentOptInWithNotification" -Value 1 -PropertyType DWORD -Force | Out-Null >> C:\Temp\OneDriveSilentBackup.log
+} else {
+New-ItemProperty -Path $regSilentRedirectPath -Name "KFMSilentOptIn" -Value $tenantID -PropertyType String -Force | Out-Null >> C:\Temp\OneDriveSilentBackup.log
+New-ItemProperty -Path $regSilentRedirectPath -Name "KFMSilentOptInWithNotification" -Value 1 -PropertyType DWORD -Force | Out-Null >> C:\Temp\OneDriveSilentBackup.log
+}
+}
+else {
+    # ConfiguredTenantId does not exist in the registry path, exit script execution
+    Write-Host "ConfiguredTenantId does not exist in the registry path. Exiting script execution." >> C:\Temp\OneDriveSilentBackup.log
+    Exit
+}
+
+}
+
+
+write-host 'Sleeping 10 Seconds'
+
+Start-sleep -Seconds 10
+
+if(-not (Get-Module RunAsUser -ListAvailable)){
+	Install-Module RunAsUser -Scope AllUsers -Force
+	Import-Module RunAsUser >> C:\Temp\OneDriveSilentBackup.log
+	write-host 'Attempting to invoke RunAs'
+	Start-sleep -Seconds 3
+	invoke-ascurrentuser -scriptblock $scriptblock -UseWindowsPowerShell
+}
+
+Else{
+	Import-Module RunAsUser
+	write-host 'Attempting to invoke RunAs'
+	Start-sleep -Seconds 3
+	invoke-ascurrentuser -scriptblock $scriptblock -UseWindowsPowerShell
+}
